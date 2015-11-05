@@ -228,7 +228,7 @@ class RemoteFileSystem(luigi.target.FileSystem):
                 raise luigi.target.MissingParentDirectory()
             raise
 
-    def _scp(self, src, dest):
+    def _scp(self, src, dest, src_is_dir):
         cmd = ["scp", "-q", "-C", "-o", "ControlMaster=no"]
         if self.remote_context.sshpass:
             cmd = ["sshpass", "-e"] + cmd
@@ -242,7 +242,7 @@ class RemoteFileSystem(luigi.target.FileSystem):
             cmd.extend(["-i", self.remote_context.key_file])
         if self.remote_context.port:
             cmd.extend(["-P", self.remote_context.port])
-        if os.path.isdir(src):
+        if src_is_dir:
             cmd.extend(["-r"])
         cmd.extend([src, dest])
         p = subprocess.Popen(cmd)
@@ -258,7 +258,7 @@ class RemoteFileSystem(luigi.target.FileSystem):
             self.remote_context.check_output(['mkdir', '-p', folder])
 
         tmp_path = path + '-luigi-tmp-%09d' % random.randrange(0, 1e10)
-        self._scp(local_path, "%s:%s" % (self.remote_context._host_ref(), tmp_path))
+        self._scp(local_path, "%s:%s" % (self.remote_context._host_ref(), tmp_path), os.path.isdir(local_path))
         self.remote_context.check_output(['mv', tmp_path, path])
 
     def get(self, path, local_path):
@@ -271,9 +271,13 @@ class RemoteFileSystem(luigi.target.FileSystem):
             except OSError:
                 pass
 
-        tmp_local_path = local_path + '-luigi-tmp-%09d' % random.randrange(0, 1e10)
-        self._scp("%s:%s" % (self.remote_context._host_ref(), path), tmp_local_path)
-        os.rename(tmp_local_path, local_path)
+        tmp_local_path = os.path.normpath(path)
+        src_is_dir = self.remote_context.is_dir(tmp_local_path)
+        if not src_is_dir:
+            tmp_local_path = local_path + '-luigi-tmp-%09d' % random.randrange(0, 1e10)
+        self._scp("%s:%s" % (self.remote_context._host_ref(), path), tmp_local_path, src_is_dir)
+        if not src_is_dir:
+            os.rename(tmp_local_path, local_path)
 
 
 class AtomicRemoteFileWriter(luigi.format.OutputPipeProcessWrapper):
