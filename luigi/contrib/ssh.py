@@ -272,7 +272,7 @@ class RemoteFileSystem(luigi.target.FileSystem):
                 pass
 
         tmp_local_path = os.path.normpath(path)
-        src_is_dir = self.is_dir(tmp_local_path)
+        src_is_dir = self.isdir(tmp_local_path)
         if not src_is_dir:
             tmp_local_path = local_path + '-luigi-tmp-%09d' % random.randrange(0, 1e10)
         self._scp("%s:%s" % (self.remote_context._host_ref(), path), tmp_local_path, src_is_dir)
